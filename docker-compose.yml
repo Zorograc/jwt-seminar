@@ -1,0 +1,21 @@
+version: '3.8'
+services:
+  pyjwt:
+    build: ./pyjwt
+    ports:
+      - "5000:5000"
+
+  jsonwebtoken:
+    build: ./jsonwebtoken
+    ports:
+      - "3000:3000"
+
+  php-jwt:
+    build: ./php-jwt
+    ports:
+      - "8080:8080"
+
+  jjwt:
+    build: ./jjwt
+    ports:
+      - "8081:8080"
