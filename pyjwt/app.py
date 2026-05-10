@@ -2,7 +2,11 @@ from flask import Flask, request, jsonify
 import jwt, datetime
 
 app = Flask(__name__)
-SECRET = "supersecretkey123"
+
+with open('/keys/private.pem', 'rb') as f:
+    PRIVATE_KEY = f.read()
+with open('/keys/public.pem', 'rb') as f:
+    PUBLIC_KEY = f.read()
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -10,14 +14,14 @@ def login():
         'user': 'testuser',
         'role': 'user',
         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-    }, SECRET, algorithm='HS256')
+    }, PRIVATE_KEY, algorithm='RS256')
     return jsonify({'token': token})
 
 @app.route('/verify', methods=['POST'])
 def verify():
     token = request.json.get('token')
     try:
-        payload = jwt.decode(token, SECRET, algorithms=['HS256'])
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
         return jsonify({'valid': True, 'payload': payload})
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)})
@@ -26,7 +30,7 @@ def verify():
 def admin():
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     try:
-        payload = jwt.decode(token, SECRET, algorithms=['HS256'])
+        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
         if payload.get('role') == 'admin':
             return jsonify({'message': 'Dobrodošel, admin!'})
         return jsonify({'error': 'Nisi admin'}), 403

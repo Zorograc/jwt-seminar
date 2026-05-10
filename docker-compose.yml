@@ -1,21 +1,32 @@
-version: '3.8'
 services:
   pyjwt:
     build: ./pyjwt
     ports:
       - "5000:5000"
+    volumes:
+      - ./private.pem:/keys/private.pem
+      - ./public.pem:/keys/public.pem
 
   jsonwebtoken:
     build: ./jsonwebtoken
     ports:
       - "3000:3000"
+    volumes:
+      - ./private.pem:/keys/private.pem
+      - ./public.pem:/keys/public.pem
 
   php-jwt:
     build: ./php-jwt
     ports:
       - "8080:8080"
+    volumes:
+      - ./private.pem:/keys/private.pem
+      - ./public.pem:/keys/public.pem
 
   jjwt:
     build: ./jjwt
     ports:
       - "8081:8080"
+    volumes:
+      - ./private.pem:/keys/private.pem
+      - ./public.pem:/keys/public.pem
