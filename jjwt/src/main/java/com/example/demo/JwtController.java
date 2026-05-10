@@ -37,37 +37,20 @@ public class JwtController {
         this.publicKey = kf.generatePublic(new X509EncodedKeySpec(publicKeyBytes));
     }
 
-    private PublicKey getVerifyKey(String token) throws Exception {
-    // Ranljiva implementacija - bere jku brez validacije
+    private Key getVerifyKey(String token) throws Exception {
     String[] parts = token.split("\\.");
-    // Dodaj padding ročno
     String headerB64 = parts[0];
     while (headerB64.length() % 4 != 0) headerB64 += "=";
     String headerJson = new String(Base64.getUrlDecoder().decode(headerB64));
-    
+
     ObjectMapper mapper = new ObjectMapper();
     Map<?, ?> header = mapper.readValue(headerJson, Map.class);
 
-    if (header.containsKey("jku")) {
-        String jku = (String) header.get("jku");
-        URL url = new URL(jku);
-        Map<?, ?> jwks = mapper.readValue(url, Map.class);
-        List<?> keys = (List<?>) jwks.get("keys");
-        Map<?, ?> jwk = (Map<?, ?>) keys.get(0);
-
-        String nStr = (String) jwk.get("n");
-        String eStr = (String) jwk.get("e");
-        while (nStr.length() % 4 != 0) nStr += "=";
-        while (eStr.length() % 4 != 0) eStr += "=";
-
-        byte[] nBytes = Base64.getUrlDecoder().decode(nStr);
-        byte[] eBytes = Base64.getUrlDecoder().decode(eStr);
-
-        BigInteger n = new BigInteger(1, nBytes);
-        BigInteger e = new BigInteger(1, eBytes);
-
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        return kf.generatePublic(new RSAPublicKeySpec(n, e));
+    if (header.containsKey("kid")) {
+        String kid = (String) header.get("kid");
+        String keyPath = "/keys/" + kid;
+        byte[] keyBytes = Files.readAllBytes(Paths.get(keyPath));
+        return new javax.crypto.spec.SecretKeySpec(keyBytes, "HmacSHA256");
     }
     return this.publicKey;
 }
@@ -97,25 +80,25 @@ public class JwtController {
     }
 
     @GetMapping("/admin")
-    public Map<String, String> admin(
-            @RequestHeader("Authorization") String authHeader,
-            HttpServletResponse response) throws Exception {
-        String token = authHeader.replace("Bearer ", "");
-        try {
-            PublicKey verifyKey = getVerifyKey(token);
-            Claims claims = Jwts.parser()
-                .verifyWith(verifyKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-            if ("admin".equals(claims.get("role"))) {
-                return Map.of("message", "Dobrodošel, admin!");
-            }
-            response.setStatus(403);
-            return Map.of("error", "Nisi admin");
-        } catch (Exception e) {
-            response.setStatus(401);
-            return Map.of("error", e.getMessage());
+public Map<String, String> admin(
+        @RequestHeader("Authorization") String authHeader,
+        HttpServletResponse response) throws Exception {
+    String token = authHeader.replace("Bearer ", "");
+    try {
+        Key verifyKey = getVerifyKey(token);
+        Claims claims = Jwts.parser()
+            .verifyWith((javax.crypto.SecretKey) verifyKey)
+            .build()
+            .parseSignedClaims(token)
+            .getPayload();
+        if ("admin".equals(claims.get("role"))) {
+            return Map.of("message", "Dobrodošel, admin!");
         }
+        response.setStatus(403);
+        return Map.of("error", "Nisi admin");
+    } catch (Exception e) {
+        response.setStatus(401);
+        return Map.of("error", e.getMessage());
     }
+}
 }

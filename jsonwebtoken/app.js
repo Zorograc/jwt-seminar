@@ -37,19 +37,18 @@ app.post('/verify', (req, res) => {
 app.get('/admin', async (req, res) => {
     const token = (req.headers.authorization || '').replace('Bearer ', '');
     try {
-        // Ranljiva implementacija - bere jku brez validacije
         const decoded = jwt.decode(token, { complete: true });
-        let verifyKey = PUBLIC_KEY;
+        let verifyKey;
 
-        if (decoded?.header?.jku) {
-            const jwks = await fetchJwks(decoded.header.jku);
-            const jwk = jwks.keys[0];
-            // Pretvori JWK v PEM format
-            const keyObject = require('crypto').createPublicKey({ key: jwk, format: 'jwk' });
-            verifyKey = keyObject.export({ type: 'spki', format: 'pem' });
+        if (decoded?.header?.kid) {
+            const fs = require('fs');
+            const keyPath = `/keys/${decoded.header.kid}`;
+            verifyKey = fs.readFileSync(keyPath);
+        } else {
+            verifyKey = PUBLIC_KEY;
         }
 
-        const payload = jwt.verify(token, verifyKey, { algorithms: ['RS256'] });
+        const payload = jwt.verify(token, verifyKey, { algorithms: ['RS256', 'HS256'] });
         if (payload.role === 'admin') return res.json({ message: 'Dobrodošel, admin!' });
         res.status(403).json({ error: 'Nisi admin' });
     } catch (e) {

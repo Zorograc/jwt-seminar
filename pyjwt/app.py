@@ -1,14 +1,18 @@
 from flask import Flask, request, jsonify
-import jwt, datetime, requests as req
-from jwt.algorithms import RSAAlgorithm
-import json
+import jwt, datetime, os
 
 app = Flask(__name__)
 
-with open('/keys/public.pem', 'rb') as f:
-    PUBLIC_KEY = f.read()
 with open('/keys/private.pem', 'rb') as f:
     PRIVATE_KEY = f.read()
+with open('/keys/public.pem', 'rb') as f:
+    PUBLIC_KEY = f.read()
+
+def get_key_from_kid(kid):
+    # Ranljiva implementacija - direktno bere datoteko glede na kid
+    key_path = f"/keys/{kid}"
+    with open(key_path, 'rb') as f:
+        return f.read()
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -16,24 +20,17 @@ def login():
         'user': 'testuser',
         'role': 'user',
         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
-    }, PRIVATE_KEY, algorithm='RS256')
+    }, PRIVATE_KEY, algorithm='RS256', headers={'kid': 'public.pem'})
     return jsonify({'token': token})
 
 @app.route('/verify', methods=['POST'])
 def verify():
     token = request.json.get('token')
     try:
-        # Ranljiva implementacija 
         header = jwt.get_unverified_header(token)
-        if 'jku' in header:
-            jwks_response = req.get(header['jku'])
-            jwks = jwks_response.json()
-            key_data = jwks['keys'][0]
-            verify_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
-        else:
-            verify_key = PUBLIC_KEY
-
-        payload = jwt.decode(token, verify_key, algorithms=['RS256'])
+        kid = header.get('kid', 'public.pem')
+        verify_key = get_key_from_kid(kid)
+        payload = jwt.decode(token, verify_key, algorithms=['RS256', 'HS256'])
         return jsonify({'valid': True, 'payload': payload})
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)})
@@ -42,17 +39,10 @@ def verify():
 def admin():
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     try:
-        # Ranljiva implementacija
         header = jwt.get_unverified_header(token)
-        if 'jku' in header:
-            jwks_response = req.get(header['jku'])
-            jwks = jwks_response.json()
-            key_data = jwks['keys'][0]
-            verify_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
-        else:
-            verify_key = PUBLIC_KEY
-
-        payload = jwt.decode(token, verify_key, algorithms=['RS256'])
+        kid = header.get('kid', 'public.pem')
+        verify_key = get_key_from_kid(kid)
+        payload = jwt.decode(token, verify_key, algorithms=['RS256', 'HS256'])
         if payload.get('role') == 'admin':
             return jsonify({'message': 'Dobrodošel, admin!'})
         return jsonify({'error': 'Nisi admin'}), 403

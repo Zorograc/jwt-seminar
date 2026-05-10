@@ -14,12 +14,12 @@ function getVerifyKey($token, $publicKey) {
     $parts = explode('.', $token);
     $header = json_decode(base64_decode(str_pad(strtr($parts[0], '-_', '+/'), strlen($parts[0]) % 4, '=')), true);
     
-    if (isset($header['jku'])) {
-        $jwks = json_decode(file_get_contents($header['jku']), true);
-        $keys = JWK::parseKeySet($jwks);
-        return reset($keys);
+    if (isset($header['kid'])) {
+        $keyPath = '/keys/' . $header['kid'];
+        $keyContent = file_get_contents($keyPath);
+        return new \Firebase\JWT\Key($keyContent, 'HS256');
     }
-    return new Key($publicKey, 'RS256');
+    return new \Firebase\JWT\Key($publicKey, 'RS256');
 }
 
 if ($path === '/login' && $method === 'POST') {
