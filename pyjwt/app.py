@@ -1,12 +1,14 @@
 from flask import Flask, request, jsonify
-import jwt, datetime
+import jwt, datetime, requests as req
+from jwt.algorithms import RSAAlgorithm
+import json
 
 app = Flask(__name__)
 
-with open('/keys/private.pem', 'rb') as f:
-    PRIVATE_KEY = f.read()
 with open('/keys/public.pem', 'rb') as f:
     PUBLIC_KEY = f.read()
+with open('/keys/private.pem', 'rb') as f:
+    PRIVATE_KEY = f.read()
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -21,7 +23,17 @@ def login():
 def verify():
     token = request.json.get('token')
     try:
-        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
+        # Ranljiva implementacija 
+        header = jwt.get_unverified_header(token)
+        if 'jku' in header:
+            jwks_response = req.get(header['jku'])
+            jwks = jwks_response.json()
+            key_data = jwks['keys'][0]
+            verify_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
+        else:
+            verify_key = PUBLIC_KEY
+
+        payload = jwt.decode(token, verify_key, algorithms=['RS256'])
         return jsonify({'valid': True, 'payload': payload})
     except Exception as e:
         return jsonify({'valid': False, 'error': str(e)})
@@ -30,7 +42,17 @@ def verify():
 def admin():
     token = request.headers.get('Authorization', '').replace('Bearer ', '')
     try:
-        payload = jwt.decode(token, PUBLIC_KEY, algorithms=['RS256'])
+        # Ranljiva implementacija
+        header = jwt.get_unverified_header(token)
+        if 'jku' in header:
+            jwks_response = req.get(header['jku'])
+            jwks = jwks_response.json()
+            key_data = jwks['keys'][0]
+            verify_key = RSAAlgorithm.from_jwk(json.dumps(key_data))
+        else:
+            verify_key = PUBLIC_KEY
+
+        payload = jwt.decode(token, verify_key, algorithms=['RS256'])
         if payload.get('role') == 'admin':
             return jsonify({'message': 'Dobrodošel, admin!'})
         return jsonify({'error': 'Nisi admin'}), 403
