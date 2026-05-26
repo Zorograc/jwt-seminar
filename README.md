@@ -1,3 +1,6 @@
+# DISCLAMER
+- Readme was written while the project was in active development, therefore it contains mistakes
+
 # Dependency
 - `pip install requests`
 - `pip install jwt_tool`
